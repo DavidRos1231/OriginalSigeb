@@ -32,15 +32,15 @@ public class FilterAuthorize implements Filter {
         whiteList[6] = "/guardar-usuario";
         whiteList[7] = "/ServletImages";
       /*  whiteList[6] = "/guardar-usuario";*/
-        adminList = new String[23];
+        adminList = new String[21];
         adminList[0]="/agregar-sala";
         adminList[1]="/agregar-libro";
         adminList[2]="/agregar-sala.jsp";
         adminList[3]="/agregar-libro.jsp";
         adminList[4]="/list-usuarios";
         adminList[5]="/list-usuarios.jsp";
-        adminList[6]="/editar-usuario";
-        adminList[7]="/editar-usuario.jsp";
+        adminList[6]="/eliminar-usuario";
+        adminList[7]="/guardar-sala";
         adminList[8]="/list-pedidos";
         adminList[9]="/list-pedidos.jsp";
         adminList[10]="/aceptar-prestamo.jsp";
@@ -54,8 +54,6 @@ public class FilterAuthorize implements Filter {
         adminList[18]="/guardar-libro;";
         adminList[19]="/aceptar-prestamp";
         adminList[20]="/eliminar-libro";
-        adminList[21]="/eliminar-usuario";
-        adminList[22]="/guardar-sala";
 
         userList = new String[3];
         userList[0] ="/perfil";

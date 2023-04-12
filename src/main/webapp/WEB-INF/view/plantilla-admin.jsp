@@ -1,21 +1,21 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <!--Barra de navegación-->
-<nav class="navbar bg-light fixed-top">
+<nav class="navbar navbar-dark bg-primary fixed-top">
     <div class="container-fluid">
         <!--Boton de despliegue de menú-->
         <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="col text-center">
-            <a class="navbar-brand mb-0 h1" href="menu" style="color: #002e60; font-size: x-large;"><img src="ServletImages?id_producto=72" class=" img-thumbnail" style="height:40px;width: 120px" alt="...">
-            <br>
-            Sistema de gestión bibliotecario
+            <a class="navbar-brand mb-0 h1" href="menu" style="color: #002e60; font-size: x-large;"><img src="ServletImages?id_producto=72" style="height:80px;width: auto" alt="...">
+
         </div>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/5/54/Logo-utez.png" style="width: 2.6cm; height: 50px;">
+        <h1 style="color: #F0F8FFFF; font-size: x-large;">MongoBooks</h1>
+
         <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasNavbar" aria-labelledby="offcanvasNavbarLabel">
             <!--Título del menú desplegable-->
             <div class="offcanvas-header">
-                <h4 class="offcanvas-title" id="offcanvasNavbarLabel">Menú</h4>
+                <h4 class="offcanvas-title" style="color: aliceblue" id="offcanvasNavbarLabel">Menú</h4>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
             <!--Cuerpo del menú desplegable-->

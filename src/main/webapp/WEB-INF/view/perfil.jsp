@@ -17,13 +17,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Bootstrap demo</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
-</head>
-<body background="https://www.guillermocinta.com/wp-content/uploads/2021/04/La%20Cr%C3%B3nica%20de%20Morelos-prepara-la-utez-clases-presenciales-con-aforo-de-50-de-alumnos-en-una-primera-etapa.jpg" style="background-repeat: no-repeat; background-attachment: fixed; background-size: cover; position: relative;">
-<jsp:include page="plantilla-user.jsp"/>
+    <link href="https://bootswatch.com/5/darkly/bootstrap.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.min.css" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_variables.scss" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_bootswatch.scss" rel="stylesheet"></head>
+<body style="background-repeat: no-repeat; background-attachment: fixed; background-size: cover; position: relative; background-color: #222222"><jsp:include page="plantilla-user.jsp"/>
 
 <!--Cuerpo-->
-<div class="container" style="margin-top: 6rem;">
+<div class="container" style="margin-top: 150px;">
     <div class="row">
         <div class="col-4">
             <div class="list-group" id="list-tab" role="tablist">
@@ -35,13 +36,14 @@
         <div class="col-8">
             <div class="tab-content" id="nav-tabContent">
                 <div class="tab-pane fade show active" id="list-home" role="tabpanel" aria-labelledby="list-home-list">
-                    <table class="table table-light table-bordered table-striped">
+                    <table class="table table-dark table-bordered table-striped">
                         <thead>
                         <tr class="text-center">
                             <th><c:out value="${usuario.tipo==0?'Matricula':'CURP'}"/></th>
                             <th>Nombre</th>
                             <th>Correo</th>
                             <th>Tipo de usuario</th>
+                            <th>Acciones</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -50,6 +52,10 @@
                             <td><c:out value="${usuario.name} ${usuario.midname} ${usuario.lastname}"/></td>
                             <td><c:out value="${usuario.correo}"/></td>
                             <td><c:out value="${usuario.tipo==0?'Estudiante':'Docente'}"/></td>
+                            <td>
+                                    <a href="editar-usuario?id=${usuario.id}" class="btn btn-success">Editar</a>
+
+                            </td>
                         </tr>
                         </tbody>
                     </table>

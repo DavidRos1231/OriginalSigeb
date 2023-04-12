@@ -64,15 +64,7 @@ public class ServletLibro extends HttpServlet {
             case "/list-libros":
                 List<BeanLibro> listLibros=new ArrayList<>();
                 request.setAttribute("role",session.getAttribute("role"));
-                String nombre=request.getParameter("nombre")!=null?(request.getParameter("nombre")):"";
-                String autor=request.getParameter("autor")!=null?(request.getParameter("autor")):"";
-                String categoria=request.getParameter("categoria")!=null?(request.getParameter("categoria")):"";
-                if(request.getParameter("nombre")==null&&request.getParameter("autor")==null&&request.getParameter("categoria")==null){
-                    listLibros = serviceLibro.listLibros();
-                }else{
-                    listLibros = serviceLibro.listLibros(nombre,autor,categoria);
-                }
-
+                listLibros = serviceLibro.listLibros();
                 request.setAttribute("list",listLibros);
                 request.getRequestDispatcher("WEB-INF/view/list-libros.jsp").forward(request,response);
                 break;

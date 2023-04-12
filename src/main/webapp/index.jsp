@@ -12,8 +12,10 @@
     <title>Login</title>
 
     <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/sign-in/">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
-
+    <link href="https://bootswatch.com/5/darkly/bootstrap.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.min.css" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_variables.scss" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_bootswatch.scss" rel="stylesheet">
 
 
     <style>
@@ -73,7 +75,7 @@
     <!-- Custom styles for this template -->
     <link href="https://getbootstrap.com/docs/5.2/examples/sign-in/signin.css" rel="stylesheet">
 </head>
-<body class="text-center">
+<body class="text-center" style="background-color: #222222">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" crossorigin="anonymous"></script>
 <c:if test="${sessionScope.containsKey('name')}">
     <c:redirect url="menu" />
@@ -81,7 +83,7 @@
 
 <main class="form-signin w-100 m-auto">
     <form method="post" action="login">
-        <img src="ServletImages?id_producto=72" class=" img-thumbnail" style="height:100px;width: 400px" alt="...">
+        <img src="ServletImages?id_producto=72"  style="height:200px;width: auto" alt="...">
         <h1 class="h3 mb-3 fw-normal">Inicio de sesión</h1>
 
         <c:if test="${param['message']!=null}">

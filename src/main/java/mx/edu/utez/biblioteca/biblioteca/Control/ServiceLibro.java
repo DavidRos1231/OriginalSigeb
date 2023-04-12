@@ -30,11 +30,6 @@ public class ServiceLibro {
         List<BeanLibro> listLibros = daoLibro.listLibros();
         return listLibros;
     }
-    public List<BeanLibro> listLibros(String nombre,String autor,String categoria){
-        DaoLibro daoLibro = new DaoLibro();
-        List<BeanLibro> listLibros = daoLibro.listLibros(nombre,autor,categoria);
-        return listLibros;
-    }
     public int saveLibro(BeanLibro libro){
         DaoLibro daoLibro=new DaoLibro();
         return daoLibro.saveLibro(libro);

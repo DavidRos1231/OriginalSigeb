@@ -22,7 +22,7 @@ public class ServiceSala {
     public boolean devolverSala(int idsala){
         boolean result=false;
         DaoSala daoSala=new DaoSala();
-        result=daoSala.devolverSala(idsala);
+
         return result;
     }
 }

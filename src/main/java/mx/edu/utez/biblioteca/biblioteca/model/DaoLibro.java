@@ -1,170 +1,224 @@
 package mx.edu.utez.biblioteca.biblioteca.model;
 
-import mx.edu.utez.biblioteca.biblioteca.utils.MySQLConnection;
-import org.w3c.dom.ls.LSOutput;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Aggregates;
+import com.mongodb.client.model.Field;
+import com.mongodb.client.model.*;
+import com.mongodb.client.model.Sorts;
+import mx.edu.utez.biblioteca.biblioteca.utils.Conn;
+import org.bson.Document;
+import org.bson.codecs.configuration.CodecProvider;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.codecs.pojo.PojoCodecProvider;
+import org.bson.conversions.Bson;
 
-import java.net.ConnectException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
+import static com.mongodb.MongoClientSettings.getDefaultCodecRegistry;
+import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
+import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
 public class DaoLibro {
+    CodecProvider pojoCodecProvider = PojoCodecProvider.builder().automatic(true).build();
+    CodecRegistry pojoCodecRegistry = fromRegistries(getDefaultCodecRegistry(), fromProviders(pojoCodecProvider));
+
 
                                 //L     I   BBBB    RRRR     OOO     SSSS
                                 //L     I   B   B   R   R   O   O   S
                                 //L     I   BBBB    RRRR    O   O    SSS
                                 //L     I   B   B   R R     O   O       S
                                 //LLLLL I   BBBB    R  R     Ooo    SSSS
+
+    //pasar list<document> a list<beanlibro>
+    public List<BeanLibro> parseListLibros(List<Document> listDocument){
+        List<BeanLibro> listLibros=new ArrayList<>();
+        for (Document document : listDocument) {
+            if((int)document.get("enable")==0){
+                continue;
+            }
+            BeanLibro beanLibro=new BeanLibro();
+            beanLibro.setId((long)((int)document.get("id")));
+            beanLibro.setName(document.getString("nombre"));
+            beanLibro.setAutor(document.getString("autor"));
+            beanLibro.setStock(document.getInteger("stock"));
+            beanLibro.setCategoria(document.getString("categoria"));
+            listLibros.add(beanLibro);
+        }
+        return listLibros;
+    }
+
+    //pasar list<document> a list<BeanEjemplar>
+    public List<BeanEjemplar> parseListEjemplares(List<Document> listDocument){
+        List<BeanEjemplar> listEjemplares=new ArrayList<>();
+        for (Document document : listDocument) {
+            BeanEjemplar beanEjemplar=new BeanEjemplar();
+            beanEjemplar.setId(((int)document.get("id")));
+            beanEjemplar.setName(document.getString("nombre"));
+            beanEjemplar.setEstado(document.getInteger("estado")==1);
+            beanEjemplar.setIdlibro(((int)document.get("idlibro")));
+            beanEjemplar.setDescripcion(document.getString("descripcion"));
+            beanEjemplar.setEditorial(document.getString("editorial"));
+            listEjemplares.add(beanEjemplar);
+        }
+        return listEjemplares;
+    }
+
+
     public List<BeanLibro> listLibros(){
         List<BeanLibro> listLibros=new ArrayList<>();
-        try{
-            Connection connection= MySQLConnection.getConnection();
-            Statement statement = connection.createStatement();
-            ResultSet rs =statement.executeQuery("SELECT * FROM biblioteca.libro_view where enable=1 order by nombre;");
-            while (rs.next()) {
-                BeanLibro libro = new BeanLibro();
-                libro.setId(rs.getInt("id"));
-                libro.setName(rs.getString("nombre"));
-                libro.setStock(rs.getInt("stock"));
-                libro.setAutor(rs.getString("autor"));
-                libro.setCategoria(rs.getString("categoria"));
-                listLibros.add(libro);
-            }
-            rs.close();
-            statement.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
+        List<Bson> pipeline;
+        try(MongoClient mongoClient = Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> libros = database.getCollection("libros");
+            pipeline = Arrays.asList(
+                    Aggregates.lookup("ejemplar", "_id", "idlibro", "ejemplares"),
+                    Aggregates.addFields(
+                            new Field<>("stock",
+                                    new Document("$size",
+                                            new Document("$filter",
+                                                    new Document("input", "$ejemplares")
+                                                            .append("as", "ejemplar")
+                                                            .append("cond", new Document("$eq",
+                                                                    Arrays.asList("$$ejemplar.estado", 1)
+                                                            ))
+                                            )
+                                    )
+                            )
+                    ),
+                    Aggregates.project(
+                            new Document("_id", 0)
+                                    .append("id", "$_id")
+                                    .append("nombre", "$nombre")
+                                    .append("autor", "$autor")
+                                    .append("categoria", "$categoria")
+                                    .append("enable", "$enable")
+                                    .append("stock", "$stock")
+                    ),
+                    Aggregates.sort(Sorts.ascending("nombre"))
+            );
+
+            List<Document> results = libros.aggregate(pipeline).into(new ArrayList<>());
+            listLibros=parseListLibros(results);
         }
         return listLibros;
     }
+
     public BeanLibro editarLibro(int id){
-        BeanLibro libro=new BeanLibro();
-        try(
-                Connection connection=MySQLConnection.getConnection();
-                PreparedStatement pstm = connection.prepareStatement("SELECT * FROM biblioteca.libros where id=?;")
-        ){
-            pstm.setInt(1,id);
-            ResultSet rs=pstm.executeQuery();
-            while(rs.next()){
-                libro.setId(rs.getInt("id"));
-                libro.setName(rs.getString("nombre"));
-                libro.setAutor(rs.getString("autor"));
-                libro.setCategoria(rs.getString("categoria"));
-            }
-            rs.close();
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-        return libro;
-    }
-
-
-    public List<BeanLibro> listLibros(String nombre,String autor,String categoria){
-        List<BeanLibro> listLibros=new ArrayList<>();
-        try(Connection connection= MySQLConnection.getConnection();
-            PreparedStatement pstm=connection.prepareStatement("SELECT * FROM biblioteca.libro_view where enable=1 and nombre like ? and autor like ? and categoria like ? order by nombre;");
-        ){
-            nombre="%"+nombre+"%";
-            autor="%"+autor+"%";
-            categoria="%"+categoria+"%";
-            pstm.setString(1,nombre);
-            pstm.setString(2,autor);
-            pstm.setString(3,categoria);
-            ResultSet rs= pstm.executeQuery();
-            while (rs.next()) {
-                BeanLibro libro = new BeanLibro();
-                libro.setId(rs.getInt("id"));
-                libro.setName(rs.getString("nombre"));
-                libro.setStock(rs.getInt("stock"));
-                libro.setAutor(rs.getString("autor"));
-                libro.setCategoria(rs.getString("categoria"));
-                listLibros.add(libro);
-            }
-            rs.close();
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-        return listLibros;
-    }
-
-    public int saveLibro(BeanLibro libro){
-        int idGenerated=0;
-        try(
-                Connection con=MySQLConnection.getConnection();
-                PreparedStatement pstm= con.prepareStatement(
-                        "insert into libros(nombre,autor,categoria,file_name)values(?,?,?,?);",
-                Statement.RETURN_GENERATED_KEYS)
-        ){
-            pstm.setString(1,libro.getName());
-            pstm.setString(2,libro.getAutor());
-            pstm.setString(3,libro.getCategoria());
-            pstm.setString(4,libro.getFile_name());
-            if(pstm.executeUpdate()==1){
-                try(ResultSet keys=pstm.getGeneratedKeys()){
-                    idGenerated=keys.next()?keys.getInt(1):0;
-                }catch (Exception e){
-                    e.printStackTrace();
+        try (MongoClient mongoClient = Conn.getConnection();) {
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> collection = database.getCollection("libros");
+            MongoCursor<Document> cursor = collection.find().iterator();
+            while (cursor.hasNext()) {
+                Document iter = cursor.next();
+                System.out.println(iter.toString());
+                if ((int)iter.get("_id") == id) {
+                    System.out.println(iter);
+                    BeanLibro libroObject = new BeanLibro();
+                    libroObject.setId((long)((int)iter.get("_id")));
+                    libroObject.setName(iter.getString("nombre"));
+                    libroObject.setAutor(iter.getString("autor"));
+                    libroObject.setCategoria(iter.getString("categoria"));
+                    return libroObject;
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
+            e.printStackTrace();
+
+        }
+        return null;
+    }
+    public int saveLibro(BeanLibro libro){
+        int id=0;
+        List<BeanLibro> listLibros=listLibros();
+        //found the greater id
+        for (BeanLibro beanLibro : listLibros) {
+            if(beanLibro.getId()>id){
+                id=(int)beanLibro.getId();
+            }
+        }
+        id++;
+        try (MongoClient mongoClient = Conn.getConnection();) {
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> collection = database.getCollection("libros");
+            Document document = new Document();
+            document.append("_id", id);
+            document.append("nombre", libro.getName());
+            document.append("autor", libro.getAutor());
+            document.append("categoria", libro.getCategoria());
+            document.append("enable", 1);
+            collection.insertOne(document);
+        } catch (Exception e) {
             e.printStackTrace();
         }
-        return idGenerated;
+        return id;
     }
+
     public boolean updateLibro(BeanLibro libro){
         boolean result=false;
-        try(
-                Connection con=MySQLConnection.getConnection();
-                PreparedStatement pstm= con.prepareStatement("UPDATE `biblioteca`.`libros` SET `nombre` = ?, `autor` = ?, `categoria` = ? WHERE (`id` = ?);");
-        ){
-            pstm.setString(1,libro.getName());
-            pstm.setString(2,libro.getAutor());
-            pstm.setString(3,libro.getCategoria());
-            pstm.setLong(4,libro.getId());
-            result = pstm.executeUpdate()==1;
-        }catch (Exception e){
+        try (MongoClient mongoClient = Conn.getConnection();) {
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> collection = database.getCollection("libros");
+            Document document = new Document();
+            document.append("nombre", libro.getName());
+            document.append("autor", libro.getAutor());
+            document.append("categoria", libro.getCategoria());
+            Document update = new Document();
+            update.append("$set", document);
+            collection.updateOne(Filters.eq("_id", libro.getId()), update);
+            result=true;
+        } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
         return result;
     }
-    public  boolean eliminarLibro(int id){
-        boolean result=false;
-        try(
-                Connection con=MySQLConnection.getConnection();
-                PreparedStatement pstm=con.prepareStatement("UPDATE `biblioteca`.`libros` SET `enable` = '0' WHERE (`id` = ?);")
-        ){
-            pstm.setInt(1,id);
-            result=pstm.executeUpdate()==1;
 
-        }catch (Exception e){e.printStackTrace();}
+    public boolean eliminarLibro(int id){
+        boolean result=false;
+        try (MongoClient mongoClient = Conn.getConnection();) {
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> collection = database.getCollection("libros");
+            Document document = new Document();
+            document.append("enable", 0);
+            Document update = new Document();
+            update.append("$set", document);
+            collection.updateOne(Filters.eq("_id", id), update);
+            result=true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
         return result;
     }
+
     public List<BeanEjemplar> listEjemplar(int id){
         List<BeanEjemplar> listEjemplar=new ArrayList<>();
-        try (
-            Connection connection= MySQLConnection.getConnection();
-            PreparedStatement pstm = connection.prepareStatement("SELECT * FROM biblioteca.list_ejemplar_view where idlibro=?;");
-                ){
-            pstm.setInt(1,id);
-            ResultSet rs =pstm.executeQuery();
-            while (rs.next()) {
-                BeanEjemplar ejemplar = new BeanEjemplar();
-                ejemplar.setId(rs.getInt("id"));
-                ejemplar.setIdlibro(rs.getInt("idlibro"));
-                ejemplar.setName(rs.getString("nombre"));
-                ejemplar.setEstado(rs.getBoolean("estado"));
-                ejemplar.setDescripcion(rs.getString("descripcion"));
-                ejemplar.setEditorial(rs.getString("editorial"));
-                listEjemplar.add(ejemplar);
+        try(MongoClient mongoClient= Conn.getConnection();){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> ejemplar = database.getCollection("ejemplar");
+            List<Bson> pipeline = Arrays.asList(
+                    Aggregates.lookup("libros", "idlibro", "_id", "libro"),
+                    Aggregates.project(
+                            new Document("_id", 0)
+                                    .append("id", "$_id")
+                                    .append("idlibro", "$idlibro")
+                                    .append("nombre", new Document("$arrayElemAt", Arrays.asList("$libro.nombre", 0)))
+                                    .append("estado", "$estado")
+                                    .append("descripcion", "$descripcion")
+                                    .append("enable", "$enable")
+                                    .append("editorial", "$editorial")
+                    )
+            );
+            List<Document> results = ejemplar.aggregate(pipeline).into(new ArrayList<>());
+            List<BeanEjemplar> resultados =parseListEjemplares(results);
+            for (BeanEjemplar beanEjemplar : resultados) {
+                if(beanEjemplar.getIdlibro()==id){
+                    listEjemplar.add(beanEjemplar);
+                }
             }
-            rs.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
         }
         return listEjemplar;
     }
@@ -175,334 +229,403 @@ public class DaoLibro {
     //U   U  SSS    U   U   AAAAA   RRRR    I   O   O    SSS
     //U   U     S   U   U   A   A   R R     I   O   O       S
     // UUU  SSSS     UUU    A   A   R  R    I    OOO    SSSS
+    public MongoCursor cursorUsuarios(){
+        MongoCursor cursor=null;
+        try(MongoClient mongoClient= Conn.getConnection();){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> usuarios = database.getCollection("usuarios");
+            //cursor
+            cursor=usuarios.find().iterator();
+        }
+        return cursor;
+    }
 
     public BeanUsuario editarUsuario(String id){
         BeanUsuario usuario=new BeanUsuario();
-        try(
-                Connection connection=MySQLConnection.getConnection();
-                PreparedStatement pstm = connection.prepareStatement("SELECT * FROM biblioteca.usuarios where id=?;")
-                ){
-            pstm.setString(1,id);
-            ResultSet rs=pstm.executeQuery();
-            while(rs.next()){
-                usuario.setId(rs.getString("id"));
-                usuario.setName(rs.getString("name"));
-                usuario.setMidname(rs.getString("midname"));
-                usuario.setLastname(rs.getString("lastname"));
-                usuario.setCorreo(rs.getString("correo"));
-                usuario.setPassword(rs.getString("password"));
-                usuario.setTipo(rs.getInt("tipo"));
+        try{
+            //cursor
+            MongoCursor cursor=cursorUsuarios();
+            while(cursor.hasNext()){
+                Document doc=(Document)cursor.next();
+                if(doc.getString("_id").equals(id)){
+                    usuario.setId(doc.getString("_id"));
+                    usuario.setName(doc.getString("name"));
+                    usuario.setMidname(doc.getString("midname"));
+                    usuario.setLastname(doc.getString("lastname"));
+                    usuario.setCorreo(doc.getString("correo"));
+                    usuario.setPassword(doc.getString("password"));
+                    usuario.setTipo(doc.getInteger("tipo"));
+                }
             }
-            rs.close();
-        }catch (Exception e){
+        }catch (Exception e) {
             e.printStackTrace();
         }
         return usuario;
     }
-    public List<BeanUsuario> listUsuarios(String mat){
+
+
+    public List<BeanUsuario> listUsuarios(String id){
+        MongoCursor cursor=cursorUsuarios();
         List<BeanUsuario> listUsuarios=new ArrayList<>();
-        mat="%"+mat+"%";
-        try{
-            Connection connection=MySQLConnection.getConnection();
-            Statement statement =connection.createStatement();
-            PreparedStatement pstm =connection.prepareStatement("SELECT * FROM biblioteca.usuarios where tipo!=2 and enable=1 and id like ?;");
-            pstm.setString(1,mat);
-            ResultSet rs= pstm.executeQuery();
-            while (rs.next()){
-                BeanUsuario usuario=new BeanUsuario();
-                usuario.setId(rs.getString("id"));
-                usuario.setName(rs.getString("name"));
-                usuario.setMidname(rs.getString("midname"));
-                usuario.setLastname(rs.getString("lastname"));
-                usuario.setCorreo(rs.getString("correo"));
-                usuario.setTipo(rs.getInt("tipo"));
-                listUsuarios.add(usuario);
+        if(id.equals("")){
+            while(cursor.hasNext()){
+                Document doc=(Document)cursor.next();
+                if(doc.getInteger("enable")==1){
+                    BeanUsuario usuario=new BeanUsuario();
+                    usuario.setId(doc.getString("_id"));
+                    usuario.setName(doc.getString("name"));
+                    usuario.setMidname(doc.getString("midname"));
+                    usuario.setLastname(doc.getString("lastname"));
+                    usuario.setCorreo(doc.getString("correo"));
+                    usuario.setPassword(doc.getString("password"));
+                    usuario.setTipo(doc.getInteger("tipo"));
+                    listUsuarios.add(usuario);
+                }
             }
-            rs.close();
-            statement.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
+        }else{
+            BeanUsuario usuario=editarUsuario(id);
+            listUsuarios.add(usuario);
+        }
+        for (BeanUsuario beanUsuario : listUsuarios) {
+            System.out.println(beanUsuario.toString());
         }
     return listUsuarios;
     }
 
-    //Editorial
-    public List<BeanEditorial> listEditorial(){
-        List<BeanEditorial> listEditorial=new ArrayList<>();
-        try{
-            Connection connection= MySQLConnection.getConnection();
-            Statement statement = connection.createStatement();
-            ResultSet rs =statement.executeQuery("SELECT * FROM biblioteca.editorial;");
-            while (rs.next()) {
-                BeanEditorial editorial = new BeanEditorial();
-                editorial.setId(rs.getInt("id"));
-                editorial.setName(rs.getString("nombre"));
-
-                listEditorial.add(editorial);
-            }
-            rs.close();
-            statement.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-    return listEditorial;
-    }
-    //Autores
-    public List<BeanAutor> listAutores(){
-        List<BeanAutor> listAutor=new ArrayList<>();
-        try{
-            Connection connection= MySQLConnection.getConnection();
-            Statement statement = connection.createStatement();
-            ResultSet rs =statement.executeQuery("SELECT * FROM biblioteca.autor_view;");
-            while (rs.next()) {
-                BeanAutor autor = new BeanAutor();
-                autor.setId(rs.getInt("id"));
-                autor.setName(rs.getString("nombre"));
-                listAutor.add(autor);
-            }
-            rs.close();
-            statement.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-    return listAutor;
-    }
-    //Categoria
-    public List<BeanCategoria> listCategorias(){
-        List<BeanCategoria> listCategoria=new ArrayList<>();
-        try{
-            Connection connection= MySQLConnection.getConnection();
-            Statement statement = connection.createStatement();
-            ResultSet rs =statement.executeQuery("SELECT * FROM biblioteca.categoria;");
-            while (rs.next()) {
-                BeanCategoria categoria = new BeanCategoria();
-                categoria.setId(rs.getInt("id"));
-                categoria.setName(rs.getString("nombre"));
-
-                listCategoria.add(categoria);
-            }
-            rs.close();
-            statement.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-    return listCategoria;
-    }
-
     public boolean saveUsuario(BeanUsuario usuario){
-        boolean result=false;
-        try(
-            Connection con=MySQLConnection.getConnection();
-            PreparedStatement pstm= con.prepareStatement("INSERT INTO `biblioteca`.`usuarios` (`id`, `name`, `midname`, `lastname`, `correo`, `password`, `tipo`) VALUES (?, ?, ?, ?, ?, ?, ?);");
-            ){
-            pstm.setString(1,usuario.getId());
-            pstm.setString(2,usuario.getName());
-            pstm.setString(3,usuario.getMidname());
-            pstm.setString(4,usuario.getLastname());
-            pstm.setString(5,usuario.getCorreo());
-            pstm.setString(6,usuario.getPassword());
-            pstm.setInt(7,usuario.getTipo());
-            result=pstm.executeUpdate()==1;
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-        return result;
+        Boolean result=false;
+        try(MongoClient mongoClient= Conn.getConnection();){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> usuarios = database.getCollection("usuarios");
+            Document document = new Document();
+            document.append("_id", usuario.getId());
+            document.append("name", usuario.getName());
+            document.append("midname", usuario.getMidname());
+            document.append("lastname", usuario.getLastname());
+            document.append("correo", usuario.getCorreo());
+            document.append("password", usuario.getPassword());
+            document.append("tipo", usuario.getTipo());
+            document.append("enable", 1);
+            document.append("tiempo", new Date());
+            usuarios.insertOne(document);
+            result=true;
+            }catch (Exception e) { e.printStackTrace(); }
+            return result;
     }
-    public boolean actualizarUsuario(BeanUsuario usuario){
-        boolean result=false;
-        try(
-            Connection con=MySQLConnection.getConnection();
-            PreparedStatement pstm= con.prepareStatement("UPDATE `biblioteca`.`usuarios` SET `name` = ?, `midname` = ?, `lastname` = ?, `correo` = ?, `password` = ? WHERE (`id` = ?);");
-        ){
-            pstm.setString(1,usuario.getName());
-            pstm.setString(2,usuario.getMidname());
-            pstm.setString(3,usuario.getLastname());
-            pstm.setString(4,usuario.getCorreo());
-            pstm.setString(5,usuario.getPassword());
-            pstm.setString(6,usuario.getId());
-            result=pstm.executeUpdate()==1;
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-        return result;
-    }
-    public boolean eliminarUsuario(String id){
-        boolean result=false;
-        try(
-                Connection con=MySQLConnection.getConnection();
-                PreparedStatement pstm=con.prepareStatement("UPDATE `biblioteca`.`usuarios` SET `enable` = '0' WHERE (`id` = ?);\n")
-                ){
-            pstm.setString(1,id);
-            result=pstm.executeUpdate()==1;
 
-        }catch (Exception e){e.printStackTrace();}
+    public boolean actualizarUsuario(BeanUsuario usuario){
+        Boolean result=false;
+        try(MongoClient mongoClient= Conn.getConnection();){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> usuarios = database.getCollection("usuarios");
+            Document document = new Document();
+            document.append("_id", usuario.getId());
+            document.append("name", usuario.getName());
+            document.append("midname", usuario.getMidname());
+            document.append("lastname", usuario.getLastname());
+            document.append("correo", usuario.getCorreo());
+            document.append("password", usuario.getPassword());
+            document.append("tipo", usuario.getTipo());
+            usuarios.updateOne(Filters.eq("_id", usuario.getId()), new Document("$set", document));
+            result=true;
+            }catch (Exception e) { e.printStackTrace(); }
+            return result;
+    }
+
+
+
+    public boolean eliminarUsuario(String id) {
+        boolean result = false;
+        try (MongoClient mongoClient = Conn.getConnection();) {
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> usuarios = database.getCollection("usuarios");
+            usuarios.updateOne(Filters.eq("_id", id), new Document("$set", new Document("enable", 0)));
+            result = true;
+        }catch (Exception e) { e.printStackTrace(); }
         return result;
     }
+
     public boolean solicitarEjemplar(int id,String userid){
         boolean result=false;
         boolean pedido=false;
-        System.out.println("idejemplar "+id+" iduser "+userid);
-        try(
-                Connection con=MySQLConnection.getConnection();
-                /*PreparedStatement pstm2=con.prepareStatement("")*/
-                PreparedStatement pstm2=con.prepareStatement("SELECT * FROM biblioteca.prestamos_vista where idejemplar=? and iduser=?;");
+        try(MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> prestamosLibros = database.getCollection("prestamos_libros");
+            List<Bson> pipeline = Arrays.asList(
+                    Aggregates.lookup("ejemplar", "idejemplar", "_id", "ejemplar"),
+                    Aggregates.unwind("$ejemplar"),
+                    Aggregates.lookup("libros", "ejemplar.idlibro", "_id", "libro"),
+                    Aggregates.unwind("$libro"),
+                    Aggregates.project(
+                            new Document("_id",0)
+                                    .append("id", "$_id")
+                                    .append("idejemplar", "$idejemplar")
+                                    .append("estado", "$ejemplar.estado")
+                                    .append("nomejemplar", "$libro.nombre")
+                                    .append("iduser", "$iduser")
+                                    .append("fechainicial", "$fechainicial")
+                                    .append("fechafinal", "$fechafinal")
+                                    .append("dias",
+                                            new Document("$divide",
+                                                    Arrays.asList(
+                                                            new Document("$subtract",
+                                                                    Arrays.asList(
+                                                                            new Date(),
+                                                                            "$fechainicial"
+                                                                    )
+                                                            ),
+                                                            86400000
+                                                    )
+                                            )
+                                    )
+                                    .append("status", "$status")
+                                    .append("descripcion", "$ejemplar.descripcion")
+                    )
+            );
+            List<Document> results = prestamosLibros.aggregate(pipeline).into(new ArrayList<>());
+            System.out.println("Hola"+results.size());
+            for (int i = 0; i < results.size(); i++) {
+                if (results.get(i).getInteger("idejemplar")==id && results.get(i).getString("iduser").equals(userid)) {
+                    pedido=true;
+                }
+            }
+            //encontrar el id mas alto en results
+            int idmax=0;
+            for (int i = 0; i < results.size(); i++) {
+                if (results.get(i).getInteger("id")>idmax) {
+                    idmax=results.get(i).getInteger("id");
+                }
+            }
+            if(!pedido){
+                Document document = new Document();
+                document.append("_id", idmax+1);
+                document.append("idejemplar", id);
+                document.append("iduser", userid);
+                document.append("status", 0);
+                prestamosLibros.insertOne(document);
+                return true;
+            }
 
-        ){
-            pstm2.setInt(1,id);
-            pstm2.setString(2,userid);
-            ResultSet rs= pstm2.executeQuery();
-            while(rs.next()){
-                System.out.println(rs.getInt("pedidoono"));
-                pedido=rs.getInt("pedidoono")>=1;
-            }
-            System.out.println("Pedido= "+pedido);
-            if (!pedido) {
-                PreparedStatement pstm = con.prepareStatement("INSERT INTO `biblioteca`.`prestamos_libros` (`idejemplar`, `iduser`) VALUES (?, ?);");
-                /*PreparedStatement pstm2= con.prepareStatement("UPDATE `biblioteca`.`ejemplar` SET `estado` = '0' WHERE (`id` = ?);")*/
-                pstm.setInt(1, id);
-                pstm.setString(2, userid);
-                /* pstm2.setInt(1,id);*/
-                result = (pstm.executeUpdate() == 1) /*&& (pstm2.executeUpdate()==1)*/;
-            }
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-        return result;
+        }catch (Exception e) { e.printStackTrace(); }
+        return false;
     }
+
     public List<BeanPrestamoLibro> listarPrestamos(String userid){
-        List<BeanPrestamoLibro> listPrestamos=new ArrayList<>();
-        try(
-                Connection connection=MySQLConnection.getConnection();
-                PreparedStatement pstm= connection.prepareStatement("SELECT * FROM biblioteca.prestamos_vista where iduser like ?;");
-
-                ){
-            userid="%"+userid+"%";
-            pstm.setString(1,userid);
-            ResultSet rs =pstm.executeQuery();
-            while(rs.next()){
-                BeanPrestamoLibro prestamoLibro=new BeanPrestamoLibro();
-                prestamoLibro.setId(rs.getInt("id"));
-                prestamoLibro.setIdejemplar(rs.getInt("idejemplar"));
-                prestamoLibro.setNomejemplar(rs.getString("nomejemplar"));
-                prestamoLibro.setUserid(rs.getString("iduser"));
-                prestamoLibro.setFechainicial(rs.getString("fechainicial"));
-                prestamoLibro.setFechafinal(rs.getString("fechafinal"));
-                prestamoLibro.setDias(rs.getInt("dias"));
-                prestamoLibro.setStatus(rs.getInt("status"));
-                prestamoLibro.setDescripcion(rs.getString("descripcion"));
-                listPrestamos.add(prestamoLibro);
+        List<BeanPrestamoLibro> listPrestamos = new ArrayList<>();
+        try(MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> prestamosLibros = database.getCollection("prestamos_libros");
+            List<Bson> pipeline = Arrays.asList(
+                    Aggregates.lookup("ejemplar", "idejemplar", "_id", "ejemplar"),
+                    Aggregates.unwind("$ejemplar"),
+                    Aggregates.lookup("libros", "ejemplar.idlibro", "_id", "libro"),
+                    Aggregates.unwind("$libro"),
+                    Aggregates.project(
+                            new Document("_id",0)
+                                    .append("id", "$_id")
+                                    .append("idejemplar", "$idejemplar")
+                                    .append("estado", "$ejemplar.estado")
+                                    .append("nomejemplar", "$libro.nombre")
+                                    .append("iduser", "$iduser")
+                                    .append("fechainicial", "$fechainicial")
+                                    .append("fechafinal", "$fechafinal")
+                                    .append("dias",
+                                            new Document("$divide",
+                                                    Arrays.asList(
+                                                            new Document("$subtract",
+                                                                    Arrays.asList(
+                                                                            new Date(),
+                                                                            "$fechainicial"
+                                                                    )
+                                                            ),
+                                                            86400000
+                                                    )
+                                            )
+                                    )
+                                    .append("status", "$status")
+                                    .append("descripcion", "$ejemplar.descripcion")
+                    )
+            );
+            List<Document> results = prestamosLibros.aggregate(pipeline).into(new ArrayList<>());
+            if(userid.equals("")){
+                for (int i = 0; i < results.size(); i++) {
+                    BeanPrestamoLibro prestamoLibro = new BeanPrestamoLibro();
+                    prestamoLibro.setId(results.get(i).getInteger("id"));
+                    prestamoLibro.setIdejemplar(results.get(i).getInteger("idejemplar"));
+                    prestamoLibro.setNomejemplar(results.get(i).getString("nomejemplar"));
+                    prestamoLibro.setUserid(results.get(i).getString("iduser"));
+                    prestamoLibro.setFechainicial(results.get(i).getDate("fechainicial")!=null?results.get(i).getDate("fechainicial").toString():"");
+                    prestamoLibro.setFechafinal(results.get(i).getDate("fechafinal")!=null?results.get(i).getDate("fechafinal").toString():"");
+                    prestamoLibro.setDias(results.get(i).getDouble("dias")!=null?(int)results.get(i).getDouble("dias").doubleValue():0);
+                    prestamoLibro.setStatus(results.get(i).getInteger("status"));
+                    prestamoLibro.setDescripcion(results.get(i).getString("descripcion"));
+                    listPrestamos.add(prestamoLibro);
+                }
+            }else {
+                for (int i = 0; i < results.size(); i++) {
+                    if(results.get(i).getString("iduser").equals(userid)){
+                        BeanPrestamoLibro prestamoLibro = new BeanPrestamoLibro();
+                        prestamoLibro.setId(results.get(i).getInteger("id"));
+                        prestamoLibro.setIdejemplar(results.get(i).getInteger("idejemplar"));
+                        prestamoLibro.setNomejemplar(results.get(i).getString("nomejemplar"));
+                        prestamoLibro.setUserid(results.get(i).getString("iduser"));
+                        prestamoLibro.setFechainicial(results.get(i).getDate("fechainicial")!=null?results.get(i).getDate("fechainicial").toString():"");
+                        prestamoLibro.setFechafinal(results.get(i).getDate("fechafinal")!=null?results.get(i).getDate("fechafinal").toString():"");
+                        prestamoLibro.setDias(results.get(i).getDouble("dias")!=null?(int)results.get(i).getDouble("dias").doubleValue():0);
+                        prestamoLibro.setStatus(results.get(i).getInteger("status"));
+                        prestamoLibro.setDescripcion(results.get(i).getString("descripcion"));
+                        prestamoLibro.setintstatus(results.get(i).getInteger("estado"));
+                        listPrestamos.add(prestamoLibro);
+                    }
             }
-            rs.close();
-            connection.close();
-        }catch (Exception e){
-            e.printStackTrace();
         }
+
+    }catch (Exception e) { e.printStackTrace(); }
         return listPrestamos;
     }
-    public List<BeanPrestamoLibro> listarPrestamosadmin(int estado){
-        List<BeanPrestamoLibro> listPrestamos=new ArrayList<>();
-        try(
-                Connection connection=MySQLConnection.getConnection();
-                PreparedStatement pstm= connection.prepareStatement("SELECT * FROM biblioteca.prestamos_vista where status=?;");
 
-        ){
-            pstm.setInt(1,estado);
-            ResultSet rs =pstm.executeQuery();
-            while(rs.next()){
-                BeanPrestamoLibro prestamoLibro=new BeanPrestamoLibro();
-                prestamoLibro.setId(rs.getInt("id"));
-                prestamoLibro.setIdejemplar(rs.getInt("idejemplar"));
-                prestamoLibro.setNomejemplar(rs.getString("nomejemplar"));
-                prestamoLibro.setUserid(rs.getString("iduser"));
-                prestamoLibro.setFechainicial(rs.getString("fechainicial"));
-                prestamoLibro.setFechafinal(rs.getString("fechafinal"));
-                prestamoLibro.setDias(rs.getInt("dias"));
-                prestamoLibro.setStatus(rs.getInt("status"));
-                System.out.println(rs.getInt("estado"));
-                prestamoLibro.setintstatus(rs.getInt("estado"));
-                listPrestamos.add(prestamoLibro);
-            }
-            rs.close();
 
-        }catch (Exception e){
-            e.printStackTrace();
-        }
+    public List<BeanPrestamoLibro> listarPrestamosadmin(int stado){
+        List<BeanPrestamoLibro> listPrestamos = new ArrayList<>();
+        try(MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> prestamosLibros = database.getCollection("prestamos_libros");
+            List<Bson> pipeline = Arrays.asList(
+                    Aggregates.lookup("ejemplar", "idejemplar", "_id", "ejemplar"),
+                    Aggregates.unwind("$ejemplar"),
+                    Aggregates.lookup("libros", "ejemplar.idlibro", "_id", "libro"),
+                    Aggregates.unwind("$libro"),
+                    Aggregates.project(
+                            new Document("_id",0)
+                                    .append("id", "$_id")
+                                    .append("idejemplar", "$idejemplar")
+                                    .append("estado", "$ejemplar.estado")
+                                    .append("nomejemplar", "$libro.nombre")
+                                    .append("iduser", "$iduser")
+                                    .append("fechainicial", "$fechainicial")
+                                    .append("fechafinal", "$fechafinal")
+                                    .append("dias",
+                                            new Document("$divide",
+                                                    Arrays.asList(
+                                                            new Document("$subtract",
+                                                                    Arrays.asList(
+                                                                            new Date(),
+                                                                            "$fechainicial"
+                                                                    )
+                                                            ),
+                                                            86400000
+                                                    )
+                                            )
+                                    )
+                                    .append("status", "$status")
+                                    .append("descripcion", "$ejemplar.descripcion")
+                    )
+            );
+            List<Document> results = prestamosLibros.aggregate(pipeline).into(new ArrayList<>());
+                for (int i = 0; i < results.size(); i++) {
+                    if(results.get(i).getInteger("status")==stado){
+                        BeanPrestamoLibro prestamoLibro = new BeanPrestamoLibro();
+                        prestamoLibro.setId(results.get(i).getInteger("id"));
+                        prestamoLibro.setIdejemplar(results.get(i).getInteger("idejemplar"));
+                        prestamoLibro.setNomejemplar(results.get(i).getString("nomejemplar"));
+                        prestamoLibro.setUserid(results.get(i).getString("iduser"));
+                        prestamoLibro.setFechainicial(results.get(i).getDate("fechainicial")!=null?results.get(i).getDate("fechainicial").toString():"");
+                        prestamoLibro.setFechafinal(results.get(i).getDate("fechafinal")!=null?results.get(i).getDate("fechafinal").toString():"");
+                        prestamoLibro.setDias(results.get(i).getDouble("dias")!=null?(int)results.get(i).getDouble("dias").doubleValue():0);
+                        prestamoLibro.setStatus(results.get(i).getInteger("status"));
+                        prestamoLibro.setDescripcion(results.get(i).getString("descripcion"));
+                        prestamoLibro.setintstatus(results.get(i).getInteger("estado"));
+                        listPrestamos.add(prestamoLibro);
+                    }
+                }
+        }catch (Exception e) { e.printStackTrace(); }
         return listPrestamos;
     }
-    public boolean aceptarPrestamo(int idpedido,int idejemplar, String idusuario){
+
+    public boolean aceptarPrestamo(int idpedido, int idejemplar,String idusuario){
         boolean result=false;
-        int tipo=0;
-        try(
-            Connection con=MySQLConnection.getConnection();
-            PreparedStatement pstm3=con.prepareStatement("select tipo from usuarios where id=?;");
-
-        ){
-            pstm3.setString(1,idusuario);
-            ResultSet rs= pstm3.executeQuery();
-            while (rs.next()){
-                tipo=rs.getInt("tipo");
+        int tipo=-1;
+        try (MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> usuarios = database.getCollection("usuarios");
+            List<Document> results = usuarios.find().into(new ArrayList<>());
+            for (int i = 0; i < results.size(); i++) {
+                System.out.println(results.get(i).toString());
+                if(results.get(i).getString("_id").equals(idusuario)){
+                    tipo=results.get(i).getInteger("tipo");
+                }
             }
-            PreparedStatement pstm= con.prepareStatement("UPDATE `biblioteca`.`ejemplar` SET `estado` = '0' WHERE (`id` = ?);");
-            PreparedStatement pstm2=con.prepareStatement("UPDATE `biblioteca`.`prestamos_libros` SET `fechainicial` = curdate(), `fechafinal` = curdate()+5+(5*?), `status` = '1' WHERE (`id` = ?);");
-            pstm.setInt(1,idejemplar);
-            pstm2.setInt(1,tipo);
-            pstm2.setInt(2,idpedido);
-            result=pstm.executeUpdate()==1 && pstm2.executeUpdate()==1;
-        }catch (Exception e){
-            e.printStackTrace();
-        }
+            if (tipo==-1){return false;}
+            MongoCollection<Document> ejemplares = database.getCollection("ejemplar");
+            ejemplares.updateOne(Filters.eq("_id", idejemplar), new Document("$set", new Document("estado", 0)));
+            MongoCollection<Document> prestamosLibros = database.getCollection("prestamos_libros");
+            //feecha actual mas 5 dias
+            Date fechainicial = new Date();
+            Calendar c = Calendar.getInstance();
+            c.setTime(fechainicial);
+            c.add(Calendar.DATE, (5+(5*tipo)));
+            Date fechafinal = c.getTime();
+            prestamosLibros.updateOne(Filters.eq("_id", idpedido), new Document("$set", new Document("fechainicial", fechainicial).append("fechafinal", fechafinal).append("status", 1)));
+            result=true;
+        }catch (Exception e) { e.printStackTrace(); }
+
         return result;
     }
+
     public boolean rechazarPrestamo(int idpedido){
         boolean result=false;
-        try(
-                Connection con=MySQLConnection.getConnection();
-                PreparedStatement pstm2=con.prepareStatement("UPDATE `biblioteca`.`prestamos_libros` SET `status` = '2' WHERE (`id` = ?);")
-        ){
-            pstm2.setInt(1,idpedido);
-            result=pstm2.executeUpdate()==1;
-        }catch (Exception e){
-            e.printStackTrace();
-        }
+        try (MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> prestamosLibros = database.getCollection("prestamos_libros");
+            prestamosLibros.updateOne(Filters.eq("_id", idpedido), new Document("$set", new Document("status", 2)));
+            result=true;
+        }catch (Exception e) { e.printStackTrace(); }
         return result;
     }
+
     public boolean regresarPrestamo(int idpedido,int idejemplar, String descripcion){
         boolean result=false;
-        try(
-                Connection con=MySQLConnection.getConnection();
-                PreparedStatement pstm= con.prepareStatement("UPDATE `biblioteca`.`ejemplar` SET `estado` = 1, `descripcion` = ? WHERE (`id` = ?);");
-                PreparedStatement pstm2=con.prepareStatement("UPDATE `biblioteca`.`prestamos_libros` SET  `fechafinal` = curdate(), `status` = '3' WHERE (`id` = ?);")
-        ){
-            pstm.setString(1,descripcion);
-            pstm.setInt(2,idejemplar);
-            pstm2.setInt(1,idpedido);
-            result=pstm.executeUpdate()==1 && pstm2.executeUpdate()==1;
+        try(MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database = mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> ejemplar = database.getCollection("ejemplar");
+            MongoCollection<Document> prestamosLibros=database.getCollection("prestamos_libros");
+            ejemplar.updateOne(Filters.eq("_id",idejemplar),new Document("$set",new Document("estado",1).append("descripcion",descripcion)));
+            prestamosLibros.updateOne(Filters.eq("_id",idpedido), new Document("$set",new Document("fechafinal", new Date()).append("status",3)));
+            return true;
         }catch (Exception e){
             e.printStackTrace();
         }
         return result;
     }
     public boolean guardarEjemplar(BeanEjemplar ejemplar,int cantidad){
+        System.out.println("guardarEjemplar"+ejemplar.toString()+cantidad);
+
         boolean result=false;
-        for (int i = 0; i < cantidad; i++) {
-
-
-        try (Connection con=MySQLConnection.getConnection();
-             PreparedStatement pstm=con.prepareStatement("INSERT INTO `biblioteca`.`ejemplar` (`idlibro`, `descripcion`, `editorial`) VALUES (?, ?, ?);")
-                ){
-            pstm.setInt(1,ejemplar.getIdlibro());
-            pstm.setString(2,ejemplar.getDescripcion());
-            pstm.setString(3,ejemplar.getEditorial());
-            result=pstm.executeUpdate()==1;
+        try(MongoClient mongoClient=Conn.getConnection()){
+            MongoDatabase database=mongoClient.getDatabase("Tsigeb").withCodecRegistry(pojoCodecRegistry);
+            MongoCollection<Document> ejemplarCollection=database.getCollection("ejemplar");
+            List<Document> ejemplares=ejemplarCollection.find().into(new ArrayList<>());
+            int id=0;
+            for (int i = 0; i < ejemplares.size(); i++) {
+                if(ejemplares.get(i).getInteger("_id")>id){
+                    id=ejemplares.get(i).getInteger("_id");
+                }
+            }
+            for (int i = 0; i < cantidad; i++) {
+                id++;
+                Document ejemplar1=new Document();
+                ejemplar1.append("_id",id)
+                        .append("idlibro",ejemplar.getIdlibro())
+                        .append("estado",1)
+                        .append("descripcion",ejemplar.getDescripcion())
+                        .append("editorial",ejemplar.getEditorial())
+                        .append("enable",1);
+                ejemplarCollection.insertOne(ejemplar1);
+            }
+            return true;
         }catch (Exception e){
             e.printStackTrace();
         }
-    }
         return result;
     }
-
 }

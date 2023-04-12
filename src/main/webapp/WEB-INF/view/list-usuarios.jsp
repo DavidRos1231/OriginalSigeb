@@ -17,11 +17,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Bootstrap demo</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
-</head>
-<body background="https://www.guillermocinta.com/wp-content/uploads/2021/04/La%20Cr%C3%B3nica%20de%20Morelos-prepara-la-utez-clases-presenciales-con-aforo-de-50-de-alumnos-en-una-primera-etapa.jpg" style="background-repeat: no-repeat; background-attachment: fixed; background-size: cover; position: relative;">
-<jsp:include page="plantilla-admin.jsp" />
-    <div class="container" style="margin-top: 6rem;">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.min.css" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_variables.scss" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_bootswatch.scss" rel="stylesheet"></head>
+<body style="background-repeat: no-repeat; background-attachment: fixed; background-size: cover; position: relative; background-color: #222222"><jsp:include page="plantilla-admin.jsp" />
+    <div class="container" style="margin-top:150px;">
         <div class="row justify-content-center">
             <div class="col-10 " style="margin-top: 25px;">
                 <div class="row justify-content-center">
@@ -51,7 +52,6 @@
                     <div class="card-footer text-center">
 
                         <form method="post" action="eliminar-usuario" >
-                            <a href="editar-usuario?id=${usuario.id}" class="btn btn-success">Editar</a>
                             <input type="hidden" value="${usuario.id}" name="id"/>
                             <button type="submit" class="btn btn-outline-danger">Eliminar</button>
                         </form>

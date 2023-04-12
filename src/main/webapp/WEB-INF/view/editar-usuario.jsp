@@ -16,18 +16,26 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Registrar persona</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.min.css" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_variables.scss" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/_bootswatch.scss" rel="stylesheet">
 </head>
-<body background="https://www.guillermocinta.com/wp-content/uploads/2021/04/La%20Cr%C3%B3nica%20de%20Morelos-prepara-la-utez-clases-presenciales-con-aforo-de-50-de-alumnos-en-una-primera-etapa.jpg" style="background-repeat: no-repeat; background-attachment: fixed; background-size: cover; position: relative;">
-<jsp:include page="plantilla-admin.jsp" />
+<body style="background-repeat: no-repeat; background-attachment: fixed; background-size: cover; position: relative; background-color: #222222">
+<c:if test="${role==2}">
+    <jsp:include page="plantilla-admin.jsp" />
+</c:if>
+<c:if test="${role!=2}">
+    <jsp:include page="plantilla-user.jsp" />
+</c:if>
 <div class="container mt-3">
-    <div style="width: 30%; max-width: 410px; height: 20%; margin-top: 110px; margin-left: 440px; border-radius: 15px; border: 1px solid black;
-    background-color: white; opacity: 90%;">
+    <div style="width: 30%; max-width: 410px; height: 20%; margin-top: 150px; margin-left: 440px; border-radius: 15px; border: 1px solid black;
+    background-color: #434343; opacity: 90%;">
         <h1 class="text-center">Actualizar datos</h1>
     </div>
 
     <div class="row justify-content-center" style="width: 75%; max-width: 1000px; height: 350px; margin-top: 50px; margin-left: 150px; border-radius: 15px;
-    border: 1px solid black; background-color: white; padding-top: 15px; opacity: 90%;">
+    border: 1px solid black; background-color: #434343; padding-top: 15px; opacity: 90%;">
 
         <div class="col-4">
             <form action="actualizar-usuario" method="post">
